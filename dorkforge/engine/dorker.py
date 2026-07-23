@@ -23,6 +23,19 @@ class DorkEngine:
         "accounts.google.com", "maps.google.com", "policies.google.com",
         "support.google.com", "translate.google.com", "webcache.googleusercontent.com",
     }
+    # These are information sources, not candidate systems. Excluding them at
+    # collection time keeps the triage queue focused on externally reachable
+    # hosts rather than advisory pages, PoCs, social posts, or documentation.
+    REFERENCE_DOMAINS = {
+        "github.com", "gitlab.com", "bitbucket.org", "gist.github.com",
+        "reddit.com", "x.com", "twitter.com", "facebook.com", "instagram.com",
+        "linkedin.com", "youtube.com", "tiktok.com",
+        "wordpress.org", "wpmudev.com", "wp-kama.com",
+        "stackoverflow.com", "stackexchange.com",
+        "hackerone.com", "bugcrowd.com", "exploit-db.com", "packetstormsecurity.com",
+        "wordfence.com", "rapid7.com", "tenable.com", "qualys.com", "cloudflare.com",
+        "cve.org", "nvd.nist.gov", "mitre.org", "cisa.gov",
+    }
 
     def __init__(
         self,
@@ -129,7 +142,7 @@ class DorkEngine:
 
         if parsed.scheme not in {"http", "https"} or not parsed.hostname:
             return None
-        if cls._is_google_owned(parsed.hostname):
+        if cls._is_google_owned(parsed.hostname) or cls._is_reference_source(parsed.hostname):
             return None
 
         # Fragments are presentation-only and make the same target look
@@ -147,6 +160,11 @@ class DorkEngine:
             or ".google." in host
             or host.endswith(("googleusercontent.com", "gstatic.com", "googleapis.com"))
         )
+
+    @classmethod
+    def _is_reference_source(cls, hostname: str) -> bool:
+        host = hostname.lower().strip(".")
+        return any(host == domain or host.endswith(f".{domain}") for domain in cls.REFERENCE_DOMAINS)
 
     def _filter_scope(self, results: list[DorkResult]) -> list[DorkResult]:
         if not self.scope_domains:

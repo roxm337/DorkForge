@@ -111,12 +111,21 @@ class DorkTab(QWidget):
     def _add_dork(self):
         text = self.dork_input.text().strip()
         if text:
-            item = QListWidgetItem(text)
-            item.setCheckState(Qt.CheckState.Checked)
-            self.dork_list.addItem(item)
+            self.add_queries([text])
             self.dork_input.clear()
-            self._update_queue_count()
             self.main.log_message(f"Added dork: {text}")
+
+    def add_queries(self, queries: list[str]):
+        """Add unique, enabled queries to the workspace queue."""
+        existing = {self.dork_list.item(i).text() for i in range(self.dork_list.count())}
+        for query in queries:
+            query = query.strip()
+            if query and query not in existing:
+                item = QListWidgetItem(query)
+                item.setCheckState(Qt.CheckState.Checked)
+                self.dork_list.addItem(item)
+                existing.add(query)
+        self._update_queue_count()
 
     def _load_dork_file(self):
         path, _ = QFileDialog.getOpenFileName(self, "Load Dork File")
