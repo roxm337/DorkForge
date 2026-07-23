@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import logging
-import re
 import time
 from typing import Callable, Optional
-from urllib.parse import urlparse, urljoin
+from urllib.parse import parse_qs, unquote, urlparse, urlunparse
 
 from bs4 import BeautifulSoup
-from cloakbrowser import BrowserContext
 
 from dorkforge.engine.browser import BrowserManager
 from dorkforge.models.result import DorkResult
@@ -21,6 +19,10 @@ class DorkEngine:
     """Core dorking engine — runs Google searches via CloakBrowser."""
 
     BASE_URL = "https://www.google.com/search"
+    BLOCKED_HOSTS = {
+        "accounts.google.com", "maps.google.com", "policies.google.com",
+        "support.google.com", "translate.google.com", "webcache.googleusercontent.com",
+    }
 
     def __init__(
         self,
@@ -62,11 +64,10 @@ class DorkEngine:
                     time.sleep(self.delay)
                     continue
 
-                urls = self._parse_results(html, dork)
-                for u in urls:
+                for u, title in self._parse_result_items(html):
                     if u not in seen_urls:
                         seen_urls.add(u)
-                        results.append(DorkResult(url=u, dork=dork))
+                        results.append(DorkResult(url=u, title=title, dork=dork))
 
                 if p < self.pages - 1:
                     time.sleep(self.delay)
@@ -75,46 +76,91 @@ class DorkEngine:
         return self._filter_scope(results)
 
     def _encode(self, dork: str) -> str:
-        import urllib.parse
-        return urllib.parse.quote(dork)
+        from urllib.parse import quote
+        return quote(dork)
 
     def _parse_results(self, html: str, dork: str) -> list[str]:
-        """Extract result URLs from Google SERP HTML."""
-        urls: list[str] = []
+        """Return verified organic-result URLs from Google SERP HTML.
+
+        Kept as a small public helper for callers that only need URLs.  Unlike
+        the prior implementation, it never falls back to every absolute link
+        on the page; those links are Google navigation, account, map, and
+        translation controls rather than search results.
+        """
+        return [url for url, _ in self._parse_result_items(html)]
+
+    def _parse_result_items(self, html: str) -> list[tuple[str, str]]:
+        """Extract only anchors that contain a Google organic result heading."""
+        results: list[tuple[str, str]] = []
         soup = BeautifulSoup(html, "html.parser")
 
-        for a in soup.find_all("a", href=True):
-            href = a["href"]
-            if href.startswith("/url?q="):
-                match = re.search(r"/url\?q=([^&]+)", href)
-                if match:
-                    url = urllib.parse.unquote(match.group(1))
-                    if url.startswith(("http://", "https://")):
-                        urls.append(url)
-
-        if not urls:
-            for a in soup.find_all("a", href=True):
-                href = a["href"]
-                if href.startswith(("http://", "https://")):
-                    urls.append(href)
+        # Google has changed its outer DOM several times, but an organic
+        # result consistently exposes a heading inside a clickable anchor.
+        for heading in soup.find_all("h3"):
+            anchor = heading.find_parent("a", href=True)
+            if not anchor:
+                continue
+            clean = self._normalise_result_url(anchor["href"])
+            if clean:
+                results.append((clean, heading.get_text(" ", strip=True)))
 
         seen: set[str] = set()
-        deduped: list[str] = []
-        for u in urls:
-            clean = u.rstrip("/")
-            if clean not in seen:
-                seen.add(clean)
-                deduped.append(clean)
+        deduped: list[tuple[str, str]] = []
+        for url, title in results:
+            if url not in seen:
+                seen.add(url)
+                deduped.append((url, title))
 
+        if not deduped:
+            logger.warning("No organic result anchors found; refusing to export SERP navigation links")
         return deduped
+
+    @classmethod
+    def _normalise_result_url(cls, href: str) -> Optional[str]:
+        """Unwrap a Google redirect and reject non-result / Google-owned URLs."""
+        if href.startswith("/"):
+            href = f"https://www.google.com{href}"
+
+        parsed = urlparse(href)
+        if parsed.netloc.endswith("google.com") and parsed.path == "/url":
+            target = parse_qs(parsed.query).get("q", parse_qs(parsed.query).get("url", [""]))[0]
+            href = unquote(target)
+            parsed = urlparse(href)
+
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            return None
+        if cls._is_google_owned(parsed.hostname):
+            return None
+
+        # Fragments are presentation-only and make the same target look
+        # unique. Keep query strings because dorks often intentionally match
+        # a query parameter or REST route.
+        return urlunparse((parsed.scheme, parsed.netloc, parsed.path.rstrip("/") or "/", "", parsed.query, ""))
+
+    @classmethod
+    def _is_google_owned(cls, hostname: str) -> bool:
+        host = hostname.lower().strip(".")
+        return (
+            host in cls.BLOCKED_HOSTS
+            or host.endswith(".google.com")
+            or host.startswith("google.")
+            or ".google." in host
+            or host.endswith(("googleusercontent.com", "gstatic.com", "googleapis.com"))
+        )
 
     def _filter_scope(self, results: list[DorkResult]) -> list[DorkResult]:
         if not self.scope_domains:
             return results
         filtered: list[DorkResult] = []
         for r in results:
-            domain = r.domain
-            if any(sd in domain for sd in self.scope_domains):
+            hostname = urlparse(r.url).hostname or ""
+            if any(self._domain_in_scope(hostname, scope) for scope in self.scope_domains):
                 filtered.append(r)
         logger.info("Scope filter: %d/%d results kept", len(filtered), len(results))
         return filtered
+
+    @staticmethod
+    def _domain_in_scope(hostname: str, scope: str) -> bool:
+        scope = scope.lower().strip().lstrip(".")
+        hostname = hostname.lower().strip(".")
+        return hostname == scope or hostname.endswith(f".{scope}")

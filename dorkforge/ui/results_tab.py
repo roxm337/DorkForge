@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QLabel,
     QTableWidget, QTableWidgetItem, QHeaderView, QPushButton,
-    QFileDialog, QMessageBox, QMenu, QAbstractItemView,
+    QFileDialog, QMessageBox, QMenu, QAbstractItemView, QApplication,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QBrush, QClipboard, QAction
@@ -34,19 +34,31 @@ class ResultsTab(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 18)
+        layout.setSpacing(14)
+
+        heading = QHBoxLayout()
+        title_block = QVBoxLayout()
+        title = QLabel("Findings")
+        title.setStyleSheet("font-size: 19px; font-weight: 750; color: #f0f5fc;")
+        title_block.addWidget(title)
+        title_block.addWidget(QLabel("Review, scope, and export the evidence collected by your active queue."))
+        heading.addLayout(title_block)
+        heading.addStretch()
+        layout.addLayout(heading)
 
         filter_row = QHBoxLayout()
-        filter_row.addWidget(QLabel("Filter:"))
         self.filter_input = QLineEdit()
-        self.filter_input.setPlaceholderText("Filter results...")
+        self.filter_input.setPlaceholderText("Search URL, title, technology, or dork…")
         self.filter_input.textChanged.connect(self._apply_filter)
         filter_row.addWidget(self.filter_input, 1)
         self.scope_input = QLineEdit()
-        self.scope_input.setPlaceholderText("Scope domains (comma-sep)")
+        self.scope_input.setPlaceholderText("Scope domains (comma-separated)")
         self.scope_input.setMaximumWidth(250)
+        self.scope_input.textChanged.connect(self._apply_filter)
         filter_row.addWidget(self.scope_input)
 
-        clear_btn = QPushButton("Clear")
+        clear_btn = QPushButton("Clear findings")
         clear_btn.clicked.connect(self.clear_results)
         filter_row.addWidget(clear_btn)
         layout.addLayout(filter_row)
@@ -60,14 +72,20 @@ class ResultsTab(QWidget):
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._table_context_menu)
         self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
+        self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(38)
+        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         layout.addWidget(self.table, 1)
 
         export_row = QHBoxLayout()
-        self.count_label = QLabel("0 results")
+        self.count_label = QLabel("0 findings")
+        self.count_label.setStyleSheet("font-weight: 700; color: #7de0ba;")
         export_row.addWidget(self.count_label)
         export_row.addStretch()
         for fmt, label in [("json", "JSON"), ("csv", "CSV"), ("urls", "URLs"), ("html", "HTML Report")]:
-            btn = QPushButton(f"Export {label}")
+            btn = QPushButton(label)
             btn.clicked.connect(lambda _, f=fmt: self._export(f))
             export_row.addWidget(btn)
         layout.addLayout(export_row)
@@ -91,24 +109,34 @@ class ResultsTab(QWidget):
             self.table.setItem(row, 5, QTableWidgetItem(str(len(r.endpoints))))
             self.table.setItem(row, 6, QTableWidgetItem(str(r.forms)))
 
-        self.count_label.setText(f"{len(results)} results")
+        self.count_label.setText(f"{len(results)} findings")
 
     def clear_results(self):
         self.results.clear()
         self.table.setRowCount(0)
-        self.count_label.setText("0 results")
+        self.count_label.setText("0 findings")
         self.main.log_message("Results cleared")
 
     def _apply_filter(self):
-        text = self.filter_input.text().lower()
-        for row in range(self.table.rowCount()):
-            match = False
-            for col in range(self.table.columnCount()):
-                item = self.table.item(row, col)
-                if item and text in item.text().lower():
-                    match = True
-                    break
-            self.table.setRowHidden(row, not match)
+        for row, result in enumerate(self.results):
+            self.table.setRowHidden(row, not self._matches_active_filters(result))
+
+    def _matches_active_filters(self, result: DorkResult) -> bool:
+        text = self.filter_input.text().lower().strip()
+        domains = [domain.strip().lower() for domain in self.scope_input.text().split(",") if domain.strip()]
+        haystack = " ".join((result.url, result.title, result.dork, " ".join(result.tech))).lower()
+        return (not text or text in haystack) and (
+            not domains or any(self._domain_in_scope(urllib.parse.urlparse(result.url).hostname or "", domain) for domain in domains)
+        )
+
+    @staticmethod
+    def _domain_in_scope(hostname: str, scope: str) -> bool:
+        scope = scope.lower().strip().lstrip(".")
+        hostname = hostname.lower().strip(".")
+        return hostname == scope or hostname.endswith(f".{scope}")
+
+    def _visible_results(self) -> list[DorkResult]:
+        return [result for result in self.results if self._matches_active_filters(result)]
 
     def _table_context_menu(self, pos):
         item = self.table.itemAt(pos)
@@ -139,7 +167,8 @@ class ResultsTab(QWidget):
                 self.scope_input.setText((current + ", " + domain).strip(", "))
 
     def _export(self, fmt: str):
-        if not self.results:
+        results = self._visible_results()
+        if not results:
             QMessageBox.warning(self, "No Data", "No results to export.")
             return
         exporter_cls = EXPORTER_MAP.get(fmt)
@@ -148,5 +177,5 @@ class ResultsTab(QWidget):
         default_name = f"dork_results.{exporter_cls.extension}"
         path, _ = QFileDialog.getSaveFileName(self, "Export", default_name)
         if path:
-            exporter_cls().export(self.results, path)
-            self.main.log_message(f"Exported {len(self.results)} results to {path}")
+            exporter_cls().export(results, path)
+            self.main.log_message(f"Exported {len(results)} filtered results to {path}")

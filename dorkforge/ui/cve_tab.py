@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import urllib.request
 import ssl
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Optional
 
 from PyQt6.QtWidgets import (
@@ -12,9 +13,9 @@ from PyQt6.QtWidgets import (
     QHeaderView, QPushButton, QMessageBox,
 )
 
-from PyQt6.QtGui import QClipboard
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QClipboard
+from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtWidgets import QApplication
 
 from dorkforge.data.categories import CVE_INTEL
 
@@ -29,13 +30,15 @@ class CVEThread(QThread):
 
     def run(self):
         try:
+            now = datetime.now(timezone.utc)
+            start = now - timedelta(days=30)
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
             req = urllib.request.Request(
                 "https://services.nvd.nist.gov/rest/json/cves/2.0"
-                "?pubStartDate=2026-07-01T00:00:00.000"
-                "&pubEndDate=2026-07-23T00:00:00.000"
+                f"?pubStartDate={start.strftime('%Y-%m-%dT%H:%M:%S.000')}"
+                f"&pubEndDate={now.strftime('%Y-%m-%dT%H:%M:%S.000')}"
                 "&cvssV3Severity=CRITICAL",
                 headers={"User-Agent": "DorkForge/1.0"},
             )
@@ -57,9 +60,11 @@ class CVETab(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 18)
+        layout.setSpacing(14)
 
         header = QLabel(
-            '<b>Active CVE Hunting — July 2026</b><br>'
+            '<span style="font-size:19px; font-weight:750; color:#f0f5fc">Active CVE hunting</span><br>'
             '<span style="color:gray">Double-click a CVE or its dorks to copy</span>'
         )
         header.setWordWrap(True)
@@ -70,6 +75,8 @@ class CVETab(QWidget):
         self.tree.setAlternatingRowColors(True)
         self.tree.header().setStretchLastSection(True)
         self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.tree.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.tree.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.tree.itemDoubleClicked.connect(self._on_double_click)
 
         self._populate()
@@ -85,8 +92,8 @@ class CVETab(QWidget):
     def _populate(self):
         self.tree.clear()
         for cve_name, info in CVE_INTEL.items():
-            root = QTreeWidgetItem([cve_name, ""])
-            root.setForeground(0, QColor("#FF4444"))
+            root = QTreeWidgetItem([cve_name, "Built-in hunt playbook"])
+            root.setForeground(0, QColor("#ff8b8b"))
             font = QFont()
             font.setBold(True)
             root.setFont(0, font)
@@ -140,11 +147,23 @@ class CVETab(QWidget):
 
     def _on_nvd_results(self, cves: list):
         self.main.log_message(f"Fetched {len(cves)} critical CVEs from NVD")
-        self._populate()
+        self.tree.clear()
+        for entry in cves:
+            cve = entry.get("cve", {})
+            cve_id = cve.get("id", "Unknown CVE")
+            descriptions = cve.get("descriptions", [])
+            description = next((d.get("value", "") for d in descriptions if d.get("lang") == "en"), "")
+            metrics = cve.get("metrics", {})
+            cvss = metrics.get("cvssMetricV31", metrics.get("cvssMetricV30", []))
+            score = cvss[0].get("cvssData", {}).get("baseScore", "—") if cvss else "—"
+            root = QTreeWidgetItem([cve_id, f"CVSS {score}"])
+            root.setForeground(0, QColor("#ff8b8b"))
+            font = QFont(); font.setBold(True); root.setFont(0, font)
+            root.addChild(QTreeWidgetItem(["Description", description]))
+            root.addChild(QTreeWidgetItem(["Source", "NIST National Vulnerability Database"] ))
+            self.tree.addTopLevelItem(root)
+        self.tree.expandToDepth(0)
 
     def _on_nvd_error(self, err: str):
         self.main.log_message(f"NVD fetch failed: {err}")
         QMessageBox.warning(self, "NVD Error", f"Could not fetch CVE data:\n{err}")
-
-
-

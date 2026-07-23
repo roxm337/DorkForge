@@ -5,7 +5,7 @@ import time
 from contextlib import contextmanager
 from typing import Iterator, Optional
 
-from cloakbrowser import launch, BrowserContext
+from cloakbrowser import launch
 
 logger = logging.getLogger(__name__)
 
@@ -17,49 +17,44 @@ class BrowserManager:
         self,
         headless: bool = True,
         proxy: Optional[str] = None,
-        user_agent: Optional[str] = None,
-        viewport: tuple[int, int] = (1920, 1080),
     ):
         self.headless = headless
         self.proxy = proxy
-        self.user_agent = user_agent
-        self.viewport = viewport
-        self._context: Optional[BrowserContext] = None
+        self._browser = None
+        self._context = None
 
-    def start(self) -> BrowserContext:
+    def start(self):
         """Launch CloakBrowser and return a browser context."""
         logger.info("Launching CloakBrowser (headless=%s, proxy=%s)", self.headless, self.proxy or "none")
-        args = {
+        kwargs = {
             "headless": self.headless,
-            "viewport": self.viewport,
-            "stealth": True,
+            "stealth_args": True,
         }
         if self.proxy:
-            args["proxy"] = self.proxy
-        if self.user_agent:
-            args["user_agent"] = self.user_agent
+            kwargs["proxy"] = self.proxy
 
-        browser = launch(**args)
-        self._context = browser.default_context
+        self._browser = launch(**kwargs)
+        self._context = self._browser.new_context()
         logger.info("CloakBrowser ready")
         return self._context
 
     def stop(self):
-        """Close the browser context."""
-        if self._context:
+        """Close the browser."""
+        if self._browser:
             try:
-                self._context.close()
+                self._browser.close()
             except Exception:
-                logger.warning("Error closing browser context", exc_info=True)
+                logger.warning("Error closing browser", exc_info=True)
+            self._browser = None
             self._context = None
             logger.info("CloakBrowser closed")
 
     @contextmanager
-    def context(self) -> Iterator[BrowserContext]:
+    def context(self):
         """Context manager for safe browser lifecycle."""
-        ctx = self.start()
+        self.start()
         try:
-            yield ctx
+            yield self._context
         finally:
             self.stop()
 
