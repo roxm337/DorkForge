@@ -109,8 +109,8 @@ class CVETab(QWidget):
         layout.setSpacing(14)
 
         header = QLabel(
-            '<span style="font-size:19px; font-weight:750; color:#f0f5fc">Active CVE hunting</span><br>'
-            '<span style="color:gray">Double-click a CVE or its dorks to copy</span>'
+            '<span style="font-size:19px; font-weight:750; color:#f0f5fc">Intelligence library</span><br>'
+            '<span style="color:#92a0af">Review approved playbooks. Double-click a record or query to copy it.</span>'
         )
         header.setWordWrap(True)
         layout.addWidget(header)
@@ -128,7 +128,7 @@ class CVETab(QWidget):
         layout.addWidget(self.tree, 1)
 
         btn_row = QHBoxLayout()
-        add_btn = QPushButton("Add playbook")
+        add_btn = QPushButton("New playbook")
         add_btn.setObjectName("primaryButton")
         add_btn.clicked.connect(self._add_playbook)
         btn_row.addWidget(add_btn)
@@ -138,11 +138,11 @@ class CVETab(QWidget):
         delete_btn = QPushButton("Delete selected")
         delete_btn.clicked.connect(self._delete_selected)
         btn_row.addWidget(delete_btn)
-        queue_btn = QPushButton("Add dorks to queue")
+        queue_btn = QPushButton("Stage queries")
         queue_btn.clicked.connect(self._add_selected_dorks_to_queue)
         btn_row.addWidget(queue_btn)
         btn_row.addStretch()
-        playbooks_btn = QPushButton("My playbooks")
+        playbooks_btn = QPushButton("Refresh library")
         playbooks_btn.clicked.connect(self._populate)
         btn_row.addWidget(playbooks_btn)
         refresh_btn = QPushButton("Refresh from NVD")
@@ -154,7 +154,7 @@ class CVETab(QWidget):
     def _populate(self):
         self.tree.clear()
         for cve_name, info in self.cve_data.items():
-            root = QTreeWidgetItem([cve_name, "Hunt playbook"])
+            root = QTreeWidgetItem([cve_name, "Intelligence playbook"])
             root.setForeground(0, QColor("#ff8b8b"))
             font = QFont()
             font.setBold(True)

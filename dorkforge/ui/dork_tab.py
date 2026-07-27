@@ -14,6 +14,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from dorkforge.data.categories import RECON_CATEGORIES, RECON_ALL_DORKS
 from dorkforge.engine.dorker import DorkEngine
 from dorkforge.engine.enrich import Enricher
+from dorkforge.engine.prober import ProbeEngine
 
 if TYPE_CHECKING:
     from dorkforge.ui.main_window import DorkForgeGUI
@@ -36,27 +37,27 @@ class DorkTab(QWidget):
         layout.setSpacing(14)
 
         intro = QVBoxLayout()
-        title = QLabel("Build your search queue")
+        title = QLabel("Collection plan")
         title.setStyleSheet("font-size: 19px; font-weight: 750; color: #f0f5fc;")
         intro.addWidget(title)
-        intro.addWidget(QLabel("Add precise queries or start from a curated reconnaissance playbook."))
+        intro.addWidget(QLabel("Stage approved queries, select an intelligence playbook, and initiate collection."))
         layout.addLayout(intro)
 
         top_row = QHBoxLayout()
         self.dork_input = QLineEdit()
         self.dork_input.setPlaceholderText("site:target.com inurl:admin")
         top_row.addWidget(self.dork_input, 1)
-        add_btn = QPushButton("Add query")
+        add_btn = QPushButton("Add to plan")
         add_btn.setObjectName("primaryButton")
         add_btn.clicked.connect(self._add_dork)
         top_row.addWidget(add_btn)
-        load_btn = QPushButton("Import file")
+        load_btn = QPushButton("Import queries")
         load_btn.clicked.connect(self._load_dork_file)
         top_row.addWidget(load_btn)
         layout.addLayout(top_row)
 
         queue_header = QHBoxLayout()
-        queue_label = QLabel("QUEUE")
+        queue_label = QLabel("ACTIVE COLLECTION QUEUE")
         queue_label.setObjectName("sectionLabel")
         queue_header.addWidget(queue_label)
         queue_header.addStretch()
@@ -72,7 +73,7 @@ class DorkTab(QWidget):
         self.dork_list.itemChanged.connect(self._update_queue_count)
         layout.addWidget(self.dork_list, 1)
 
-        preset_label = QLabel("QUICK START PRESETS")
+        preset_label = QLabel("INTELLIGENCE PLAYBOOKS")
         preset_label.setObjectName("sectionLabel")
         layout.addWidget(preset_label)
         preset_scroll = QScrollArea()
@@ -89,7 +90,7 @@ class DorkTab(QWidget):
             btn = QPushButton(name)
             btn.clicked.connect(lambda _, n=name: self._add_category(n))
             cat_layout.addWidget(btn)
-        cat_all = QPushButton("All presets")
+        cat_all = QPushButton("Load all playbooks")
         cat_all.clicked.connect(self._add_all_categories)
         cat_layout.addWidget(cat_all)
         cat_layout.addStretch()
@@ -102,10 +103,14 @@ class DorkTab(QWidget):
         rem_btn = QPushButton("Remove selected")
         rem_btn.clicked.connect(self._remove_selected)
         action_layout.addWidget(rem_btn)
-        run_btn = QPushButton("Run active queue")
+        run_btn = QPushButton("Start collection")
         run_btn.setObjectName("primaryButton")
         run_btn.clicked.connect(self._run_all)
         action_layout.addWidget(run_btn)
+        probe_btn = QPushButton("PROBE RESULTS")
+        probe_btn.setStyleSheet("background-color: #a371f7; color: white; font-weight: bold; padding: 6px 16px;")
+        probe_btn.clicked.connect(self._probe_results)
+        action_layout.addWidget(probe_btn)
         layout.addLayout(action_layout)
 
     def _add_dork(self):
@@ -218,6 +223,35 @@ class DorkTab(QWidget):
             self.main.status(f"Done — {len(all_results)} results")
 
         threading.Thread(target=_run, daemon=True).start()
+
+    def _probe_results(self):
+        results = self.main.results_tab.results
+        if not results:
+            self.main.log_message("No results to probe. Run dorks first.")
+            return
+
+        settings = self.main.settings_tab
+        self.main.status(f"Probing {len(results)} targets with CloakBrowser...")
+
+        def _probe():
+            prober = ProbeEngine(
+                headless=settings.headless_cb.isChecked(),
+                proxy=settings.proxy_input.text().strip() or None,
+            )
+            all_probes = prober.probe(results)
+            interesting = [p for p in all_probes if p.is_interesting]
+            self.main.log_message(
+                f"Probe complete — {len(all_probes)} checks, "
+                f"{len(interesting)} interesting"
+            )
+            for p in interesting[:20]:
+                self.main.log_message(f"  [{p.verdict}] {p.cve} — {p.url}")
+            if len(interesting) > 20:
+                self.main.log_message(f"  ... and {len(interesting) - 20} more")
+            self.main.results_tab.show_probe_results(all_probes)
+            self.main.status(f"Probe done — {len(interesting)} interesting")
+
+        threading.Thread(target=_probe, daemon=True).start()
 
     def _scope_domains(self) -> list[str]:
         """Read the operator's scope once, before the run begins."""

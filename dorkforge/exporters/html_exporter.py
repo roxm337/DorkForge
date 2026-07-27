@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import html as html_mod
-from datetime import datetime
+from datetime import datetime, timezone
 
 from dorkforge.exporters.base import Exporter
 from dorkforge.models.result import DorkResult
@@ -60,7 +60,7 @@ class HTMLExporter(Exporter):
 </tr>"""
 
     def export(self, results: list[DorkResult], path: str) -> str:
-        date = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+        date = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
         alive = sum(1 for r in results if r.status and 200 <= r.status < 400)
         dorks_used = len({r.dork for r in results if r.dork})
 

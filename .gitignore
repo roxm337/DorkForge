@@ -28,3 +28,4 @@ reports/
 # Environment
 .env
 *.env
+malta_probed_probes.txt

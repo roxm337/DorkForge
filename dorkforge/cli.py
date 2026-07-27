@@ -13,6 +13,7 @@ from dorkforge import __version__
 from dorkforge.data.categories import RECON_CATEGORIES, RECON_ALL_DORKS, CVE_INTEL
 from dorkforge.engine.dorker import DorkEngine
 from dorkforge.engine.enrich import Enricher
+from dorkforge.engine.prober import ProbeEngine
 from dorkforge.exporters import EXPORTER_MAP
 from dorkforge.models.result import DorkResult
 
@@ -57,6 +58,7 @@ def cli(ctx: click.Context, verbose: bool):
 @click.option("--proxy", help="Proxy URL (e.g. http://127.0.0.1:8080)")
 @click.option("--scope", "-s", help="Comma-separated domains to scope results")
 @click.option("--enrich", is_flag=True, help="Deep enrich (status, tech, endpoints, forms)")
+@click.option("--probe", is_flag=True, help="Probe results with CloakBrowser for CVE-specific vuln endpoints")
 @click.option("--export", "export_fmt", type=click.Choice(["json", "csv", "urls", "html"]), help="Export results")
 @click.option("--output", "-o", default="dork_results", help="Output file path (without extension)")
 @click.option("--discord-webhook", envvar="DORKFORGE_DISCORD_WEBHOOK", help="Discord webhook URL")
@@ -72,6 +74,7 @@ def search(
     proxy: Optional[str],
     scope: Optional[str],
     enrich: bool,
+    probe: bool,
     export_fmt: Optional[str],
     output: str,
     discord_webhook: Optional[str],
@@ -131,6 +134,26 @@ def search(
         click.echo("Enriching...")
         enricher = Enricher()
         all_results = enricher.enrich(all_results)
+
+    if probe and all_results:
+        click.echo("Probing targets with CloakBrowser (CVE-specific endpoints)...")
+        click.echo("  This bypasses Cloudflare/WAF to check actual vuln reachability.\n")
+        prober = ProbeEngine(headless=headless, proxy=proxy)
+        probe_results = prober.probe(all_results, progress_cb=progress_cb)
+
+        interesting = [p for p in probe_results if p.is_interesting]
+        click.echo(f"\nProbe complete — {len(probe_results)} checks, {len(interesting)} interesting:\n")
+        for p in interesting[:30]:
+            click.echo(f"  [{p.verdict}] {p.cve} — {p.url}")
+        if len(interesting) > 30:
+            click.echo(f"  ... and {len(interesting) - 30} more")
+
+        # Save probe results
+        probe_path = f"{output}_probes.txt"
+        with open(probe_path, "w") as f:
+            for p in interesting:
+                f.write(f"[{p.verdict}] {p.cve} | {p.url}\n")
+        click.echo(f"Probe results saved to {probe_path}")
 
     if export_fmt:
         exporter_cls = EXPORTER_MAP.get(export_fmt)

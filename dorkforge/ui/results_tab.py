@@ -39,10 +39,10 @@ class ResultsTab(QWidget):
 
         heading = QHBoxLayout()
         title_block = QVBoxLayout()
-        title = QLabel("Findings")
+        title = QLabel("Intelligence findings")
         title.setStyleSheet("font-size: 19px; font-weight: 750; color: #f0f5fc;")
         title_block.addWidget(title)
-        title_block.addWidget(QLabel("Review, scope, and export the evidence collected by your active queue."))
+        title_block.addWidget(QLabel("Review collected evidence, apply scope filters, and prepare a handoff-ready export."))
         heading.addLayout(title_block)
         heading.addStretch()
         layout.addLayout(heading)
@@ -53,12 +53,12 @@ class ResultsTab(QWidget):
         self.filter_input.textChanged.connect(self._apply_filter)
         filter_row.addWidget(self.filter_input, 1)
         self.scope_input = QLineEdit()
-        self.scope_input.setPlaceholderText("Scope domains (comma-separated)")
+        self.scope_input.setPlaceholderText("Authorized domains (comma-separated)")
         self.scope_input.setMaximumWidth(250)
         self.scope_input.textChanged.connect(self._apply_filter)
         filter_row.addWidget(self.scope_input)
 
-        clear_btn = QPushButton("Clear findings")
+        clear_btn = QPushButton("Clear workspace")
         clear_btn.clicked.connect(self.clear_results)
         filter_row.addWidget(clear_btn)
         layout.addLayout(filter_row)
@@ -80,8 +80,8 @@ class ResultsTab(QWidget):
         layout.addWidget(self.table, 1)
 
         export_row = QHBoxLayout()
-        self.count_label = QLabel("0 findings")
-        self.count_label.setStyleSheet("font-weight: 700; color: #7de0ba;")
+        self.count_label = QLabel("0 records")
+        self.count_label.setStyleSheet("font-weight: 700; color: #d5a44c;")
         export_row.addWidget(self.count_label)
         export_row.addStretch()
         for fmt, label in [("json", "JSON"), ("csv", "CSV"), ("urls", "URLs"), ("html", "HTML Report")]:
@@ -109,12 +109,12 @@ class ResultsTab(QWidget):
             self.table.setItem(row, 5, QTableWidgetItem(str(len(r.endpoints))))
             self.table.setItem(row, 6, QTableWidgetItem(str(r.forms)))
 
-        self.count_label.setText(f"{len(results)} findings")
+        self.count_label.setText(f"{len(results)} records")
 
     def clear_results(self):
         self.results.clear()
         self.table.setRowCount(0)
-        self.count_label.setText("0 findings")
+        self.count_label.setText("0 records")
         self.main.log_message("Results cleared")
 
     def _apply_filter(self):
@@ -179,3 +179,26 @@ class ResultsTab(QWidget):
         if path:
             exporter_cls().export(results, path)
             self.main.log_message(f"Exported {len(results)} filtered results to {path}")
+
+    def show_probe_results(self, probe_results: list):
+        """Display probe results in a new table overlay."""
+        from dorkforge.engine.prober import ProbeResult
+        interesting = [p for p in probe_results if p.is_interesting]
+        self.main.log_message(f"Updating results with probe verdicts ({len(interesting)} interesting)")
+
+        interesting_urls = {p.url for p in interesting}
+        for row in range(self.table.rowCount()):
+            url_item = self.table.item(row, 0)
+            if url_item and url_item.text() in interesting_urls:
+                url_item.setForeground(QColor("#a371f7"))
+                url_item.setToolTip(f"CVE: {[p.cve for p in interesting if p.url == url_item.text()][0]}")
+                verdict = [p.verdict for p in interesting if p.url == url_item.text()][0]
+                if self.table.columnCount() < 8:
+                    self.table.setColumnCount(8)
+                    self.table.setHorizontalHeaderItem(7, QTableWidgetItem("Probe"))
+                self.table.setItem(row, 7, QTableWidgetItem(verdict))
+
+        self.main.log_message(
+            f"  → {len(interesting)} targets flagged: "
+            + ", ".join(f"{p.cve}={p.verdict}" for p in interesting[:5])
+        )

@@ -139,6 +139,20 @@ The GUI provides a query queue, category presets, live result filtering, export
 controls, CVE-intelligence review, and runtime settings for pages, delay, browser
 mode, proxy, and webhooks.
 
+### Interface preview
+
+**Collection plan** — stage approved queries and launch a collection run.
+
+![DorkForge collection plan](<screens/Screenshot 2026-07-27 at 15.08.42.png>)
+
+**Intelligence findings** — filter, review, and export collected evidence.
+
+![DorkForge intelligence findings](<screens/Screenshot 2026-07-27 at 15.11.23.png>)
+
+**Intelligence library** — maintain and stage CVE investigation playbooks.
+
+![DorkForge intelligence library](<screens/Screenshot 2026-07-27 at 15.11.35.png>)
+
 ## Notifications
 
 Pass a webhook per run or configure it through the environment:

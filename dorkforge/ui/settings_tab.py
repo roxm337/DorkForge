@@ -35,12 +35,12 @@ class SettingsTab(QWidget):
         layout.setContentsMargins(20, 20, 20, 18)
         layout.setSpacing(16)
 
-        title = QLabel("Workspace settings")
+        title = QLabel("Collection controls")
         title.setStyleSheet("font-size: 19px; font-weight: 750; color: #f0f5fc;")
         layout.addWidget(title)
-        layout.addWidget(QLabel("Tune the collection workflow and optional delivery channels."))
+        layout.addWidget(QLabel("Set collection limits, enrichment depth, routing, and delivery controls for this session."))
 
-        grp = QGroupBox("Search")
+        grp = QGroupBox("Collection profile")
         gf = QFormLayout(grp)
         self.pages_spin = QSpinBox()
         self.pages_spin.setRange(1, 50)
@@ -56,13 +56,13 @@ class SettingsTab(QWidget):
         gf.addRow(self.headless_cb)
         layout.addWidget(grp)
 
-        grp2 = QGroupBox("Enrichment")
+        grp2 = QGroupBox("Evidence enrichment")
         gf2 = QFormLayout(grp2)
         self.enrich_cb = QCheckBox("Deep scan results (status, tech, forms, endpoints)")
         gf2.addRow(self.enrich_cb)
         layout.addWidget(grp2)
 
-        grp3 = QGroupBox("Proxy & Webhooks")
+        grp3 = QGroupBox("Routing & notifications")
         gf3 = QFormLayout(grp3)
         self.proxy_input = QLineEdit()
         self.proxy_input.setPlaceholderText("http://127.0.0.1:8080")

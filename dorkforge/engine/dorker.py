@@ -31,10 +31,12 @@ class DorkEngine:
         "reddit.com", "x.com", "twitter.com", "facebook.com", "instagram.com",
         "linkedin.com", "youtube.com", "tiktok.com",
         "wordpress.org", "wpmudev.com", "wp-kama.com",
-        "stackoverflow.com", "stackexchange.com",
+        "stackoverflow.com", "stackexchange.com", "serverfault.com",
         "hackerone.com", "bugcrowd.com", "exploit-db.com", "packetstormsecurity.com",
         "wordfence.com", "rapid7.com", "tenable.com", "qualys.com", "cloudflare.com",
         "cve.org", "nvd.nist.gov", "mitre.org", "cisa.gov",
+        "learn.microsoft.com", "support.microsoft.com", "docs.microsoft.com",
+        "community.adobe.com", "developer.aliyun.com", "zhuanlan.zhihu.com",
     }
 
     def __init__(
