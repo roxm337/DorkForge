@@ -1,78 +1,190 @@
 # DorkForge
 
-Google Dorking & CVE Hunting Platform.
+> A desktop and command-line workspace for authorized search-based reconnaissance.
 
-Search Google with dorks via CloakBrowser (stealth, undetectable), enrich results with tech detection and endpoint discovery, export in multiple formats, and notify via Discord/Slack.
+DorkForge runs search queries, consolidates matching URLs, and optionally enriches
+results with basic HTTP, technology, endpoint, and form information. It is designed
+to help security teams triage assets they are authorized to assess.
 
-## Quick Start
+## Features
+
+- Run individual queries, a file of queries, or built-in recon categories
+- Limit results to approved domains with a scope filter
+- Deduplicate search results across queries
+- Enrich discovered URLs with status, detected technologies, endpoints, and forms
+- Export results as JSON, CSV, newline-delimited URLs, or an HTML triage report
+- Send result summaries to Discord or Slack webhooks
+- Use a PyQt6 desktop interface for queue management and result review
+- Review the bundled CVE-intelligence entries from the CLI or GUI
+
+## Responsible use
+
+Use DorkForge only against systems you own or have explicit permission to test.
+Search results can expose sensitive material; treat output as confidential, keep
+collection proportional to the engagement scope, and follow the terms and policies
+of the search provider and target organization. The `--scope` option is strongly
+recommended for every assessment.
+
+## Requirements
+
+- Python 3.10 or newer
+- A supported local browser environment for `cloakbrowser`
+- Network access appropriate to your authorized engagement
+
+## Installation
+
+Clone the repository and install the package in an isolated virtual environment:
 
 ```bash
-pip install -r requirements.txt
-pip install -e .
+git clone https://github.com/0x1337/dorkforge.git
+cd dorkforge
 
-# CLI
-dorkforge search --category "CVE: wp2shell (WordPress RCE)" --enrich --export html
-
-# GUI
-dorkforge-gui
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip install -e .
 ```
 
-## CLI Usage
+You can also use the provided Make targets:
 
 ```bash
-# Single dork
-dorkforge search 'inurl:/wp-admin' --pages 3
+make install
+```
 
-# Category
-dorkforge search --category "Exposed Files" --enrich --export json
+## Quick start
 
-# Multiple categories
-dorkforge search --category "CVE: wp2shell (WordPress RCE)" -c "CVE: PAN-OS RCE"
+List the available query categories, then run a scoped query and export an HTML
+report:
 
-# From file
-dorkforge search -f my_dorks.txt --enrich --export html
-
-# Scope filter
-dorkforge search --category "Exposed Panels" --scope target.com,sub.target.com
-
-# With proxy
-dorkforge search --category "CVE: cPanel Auth Bypass" --proxy http://127.0.0.1:8080
-
-# List categories
+```bash
 dorkforge categories
 
-# List CVE intel
-dorkforge cve
+dorkforge search 'site:example.com inurl:admin' \
+  --scope example.com \
+  --pages 2 \
+  --enrich \
+  --export html \
+  --output assessment-results
 ```
 
-## CVE Intel Mode
+The example writes `assessment-results.html` in the current directory.
 
-Built-in dorks for actively exploited CVEs:
+## Command-line usage
 
-| CVE | CVSS | Type |
-|-----|------|------|
-| CVE-2026-63030/60137 (wp2shell) | 9.8 | Pre-auth RCE in WordPress |
-| CVE-2026-41940 (cPanel) | 9.1 | Auth bypass → RCE |
-| CVE-2026-0300 (PAN-OS) | 9.3 | OOB Write / RCE |
-| CVE-2026-33032 (Nginx UI) | 9.8 | Missing auth |
-| CVE-2026-20122/128/133 (Cisco SD-WAN) | 9.1-9.8 | Auth bypass |
-| CVE-2026-6973 (Ivanti EPMM) | 9.8 | Auth bypass |
+```text
+dorkforge [--verbose] COMMAND [OPTIONS]
 
-## GUI
+Commands:
+  search       Run one or more search queries
+  categories   List bundled recon categories and their queries
+  cve          List bundled CVE-intelligence entries
+```
+
+### Search inputs
+
+```bash
+# One query
+dorkforge search 'site:example.com filetype:pdf'
+
+# Multiple query arguments
+dorkforge search 'site:example.com inurl:login' 'site:example.com inurl:admin'
+
+# Load one query per line; lines beginning with # are ignored
+dorkforge search --file queries.txt --scope example.com
+
+# Run a named built-in category (list names with `dorkforge categories`)
+dorkforge search --category 'Exposed Files' --scope example.com
+
+# Run every bundled category, with a conservative page and delay configuration
+dorkforge search --all-categories --scope example.com --pages 1 --delay 5
+```
+
+### Filtering, enrichment, and exports
+
+```bash
+dorkforge search 'site:example.com inurl:api' \
+  --scope example.com,portal.example.com \
+  --pages 3 \
+  --delay 4 \
+  --proxy http://127.0.0.1:8080 \
+  --enrich \
+  --export csv \
+  --output scoped-api-results
+```
+
+| Option | Purpose |
+| --- | --- |
+| `--scope`, `-s` | Comma-separated domains permitted in results |
+| `--pages`, `-p` | Search-result pages per query (default: `2`) |
+| `--delay`, `-d` | Delay between pages in seconds (default: `4`) |
+| `--enrich` | Collect status, technology, endpoint, and form details |
+| `--export` | Output format: `json`, `csv`, `urls`, or `html` |
+| `--output`, `-o` | Destination path without the export extension |
+| `--headless` / `--no-headless` | Run the browser with or without a visible window |
+| `--proxy` | Proxy URL for browser traffic |
+| `--verbose`, `-v` | Enable diagnostic logging |
+
+## Desktop application
+
+Launch the graphical workspace with either command:
 
 ```bash
 dorkforge-gui
+# or
+python -m dorkforge gui
 ```
 
-Features:
-- Dork queue with category presets
-- Results table with live filtering and color-coded status
-- Deep enrichment (tech detection, JS endpoints, forms)
-- Export: JSON, CSV, URLs, HTML triage report
-- CVE Intel panel with one-click dork copy
-- Settings: pages, delay, headless, proxy, webhooks
+The GUI provides a query queue, category presets, live result filtering, export
+controls, CVE-intelligence review, and runtime settings for pages, delay, browser
+mode, proxy, and webhooks.
 
-## Environment Variables
+## Notifications
 
-- `DORKFORGE_DISCORD_WEBHOOK` — Discord webhook URL
-- `DORKFORGE_SLACK_WEBHOOK` — Slack webhook URL
+Pass a webhook per run or configure it through the environment:
+
+```bash
+export DORKFORGE_DISCORD_WEBHOOK='https://discord.com/api/webhooks/...'
+export DORKFORGE_SLACK_WEBHOOK='https://hooks.slack.com/services/...'
+
+dorkforge search 'site:example.com inurl:login' --scope example.com --export json
+```
+
+Webhook URLs may also be supplied with `--discord-webhook` and `--slack-webhook`.
+Keep these values out of source control and shared shell histories.
+
+## Development
+
+```bash
+make test
+make lint
+```
+
+Equivalent commands:
+
+```bash
+pytest tests/ -v -x
+ruff check dorkforge/ tests/
+ruff format --check dorkforge/ tests/
+```
+
+## Project layout
+
+```text
+dorkforge/
+├── cli.py          # Click command-line interface
+├── data/           # Query categories and CVE-intelligence data
+├── engine/         # Browser search and result enrichment
+├── exporters/      # JSON, CSV, URL, and HTML report exporters
+├── notifiers/      # Discord and Slack webhook integrations
+└── ui/             # PyQt6 desktop application
+tests/              # Automated test suite
+```
+
+## Support
+
+For installation help or feature requests, open an issue in the project repository.
+
+## License
+
+This project is published under the MIT license, as declared in `pyproject.toml`.
