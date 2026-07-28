@@ -14,6 +14,7 @@ from dorkforge.data.categories import RECON_CATEGORIES, RECON_ALL_DORKS, CVE_INT
 from dorkforge.engine.dorker import DorkEngine
 from dorkforge.engine.enrich import Enricher
 from dorkforge.engine.prober import ProbeEngine
+from dorkforge.engine.classifier import filter_quality, classify_result
 from dorkforge.exporters import EXPORTER_MAP
 from dorkforge.models.result import DorkResult
 
@@ -58,6 +59,7 @@ def cli(ctx: click.Context, verbose: bool):
 @click.option("--proxy", help="Proxy URL (e.g. http://127.0.0.1:8080)")
 @click.option("--scope", "-s", help="Comma-separated domains to scope results")
 @click.option("--enrich", is_flag=True, help="Deep enrich (status, tech, endpoints, forms)")
+@click.option("--quality/--no-quality", default=True, help="Auto-filter noise results (default: on)")
 @click.option("--probe", is_flag=True, help="Probe results with CloakBrowser for CVE-specific vuln endpoints")
 @click.option("--export", "export_fmt", type=click.Choice(["json", "csv", "urls", "html"]), help="Export results")
 @click.option("--output", "-o", default="dork_results", help="Output file path (without extension)")
@@ -74,6 +76,7 @@ def search(
     proxy: Optional[str],
     scope: Optional[str],
     enrich: bool,
+    quality: bool,
     probe: bool,
     export_fmt: Optional[str],
     output: str,
@@ -129,6 +132,20 @@ def search(
             click.echo(f"  ✗ Error: {e}\n", err=True)
 
     click.echo(f"\nTotal unique results: {len(all_results)}")
+
+    if quality and all_results:
+        click.echo("Filtering noise...")
+        scored = filter_quality(all_results, min_score=3)
+        kept = [r for r, s, why in scored]
+        noise_count = len(all_results) - len(kept)
+        click.echo(f"  Quality filter: kept {len(kept)}/{len(all_results)} (removed {noise_count} noise)\n")
+        for r, s, why in scored[:5]:
+            click.echo(f"  [{s}/5] {r.url}")
+            click.echo(f"        {why}")
+        if noise_count > 0:
+            click.echo(f"  ... {noise_count} noise results hidden")
+        click.echo("")
+        all_results = kept
 
     if enrich:
         click.echo("Enriching...")

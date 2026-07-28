@@ -192,6 +192,162 @@ PROBE_DEFS: dict[str, CVEProbe] = {
             "body": ["Outlook Web App", "Exchange", "logon"],
         },
     ),
+    # ============================================================
+    # SQLi Probes — July 2026
+    # ============================================================
+    "drupal": CVEProbe(
+        cve_id="CVE-2026-9082",
+        name="Drupal PostgreSQL SQLi",
+        endpoints=[
+            "/user/login?_format=json",
+            "/jsonapi",
+            "/user/login",
+        ],
+        fingerprint={
+            "body": ["Drupal", "SESS", "drupal"],
+        },
+    ),
+    "proftpd": CVEProbe(
+        cve_id="CVE-2026-42167",
+        name="ProFTPD SQLi→RCE",
+        endpoints=[
+            "/",
+        ],
+        fingerprint={
+            "header": ["ProFTPD", "FTP"],
+            "body": ["ProFTPD", "mod_sql"],
+        },
+    ),
+    "control web panel": CVEProbe(
+        cve_id="CVE-2026-57517",
+        name="CWP SQLi→RCE",
+        endpoints=[
+            "/admin/",
+            "/login/",
+        ],
+        fingerprint={
+            "body": ["Control Web Panel", "CWP", "cwpsvc"],
+        },
+    ),
+    "symfony": CVEProbe(
+        cve_id="CVE-2026-45073",
+        name="Symfony PdoAdapter SQLi",
+        endpoints=[
+            "/_profiler/",
+            "/_profiler/phpinfo",
+        ],
+        fingerprint={
+            "body": ["Symfony", "sf_app", "Web Debug Toolbar"],
+        },
+    ),
+    "coldfusion": CVEProbe(
+        cve_id="CVE-2026-48324",
+        name="ColdFusion SQLi→RCE",
+        endpoints=[
+            "/CFIDE/administrator/index.cfm",
+            "/CFIDE/adminapi/administrator.cfc",
+        ],
+        fingerprint={
+            "body": ["ColdFusion", "CFIDE", "Adobe ColdFusion"],
+        },
+    ),
+    "n8n": CVEProbe(
+        cve_id="CVE-2026-56351",
+        name="n8n SQLi",
+        endpoints=[
+            "/",
+            "/login",
+            "/api/v1/workflows",
+        ],
+        fingerprint={
+            "body": ["n8n", "workflow", "n8n editor"],
+        },
+    ),
+    "twenty": CVEProbe(
+        cve_id="CVE-2026-46624",
+        name="Twenty CRM SQLi→RCE",
+        endpoints=[
+            "/auth/login",
+            "/graphql",
+        ],
+        fingerprint={
+            "body": ["Twenty", "twenty-crm", "Sign In"],
+        },
+    ),
+    "otrs": CVEProbe(
+        cve_id="CVE-2026-48188",
+        name="OTRS SQLi Auth Bypass",
+        endpoints=[
+            "/otrs/index.pl",
+            "/otrs/login.pl",
+        ],
+        fingerprint={
+            "body": ["OTRS", "((OTRS))", "Open Ticket Request System"],
+        },
+    ),
+    "mariadb": CVEProbe(
+        cve_id="CVE-2026-44172",
+        name="MariaDB big5 SQLi",
+        endpoints=[
+            "/",
+        ],
+        fingerprint={
+            "body": ["MariaDB", "big5", "mysql"],
+        },
+    ),
+    "pgadmin": CVEProbe(
+        cve_id="CVE-2026-12044",
+        name="pgAdmin 4 SQLi",
+        endpoints=[
+            "/",
+            "/login",
+        ],
+        fingerprint={
+            "body": ["pgAdmin", "PostgreSQL", "Dashboard"],
+        },
+    ),
+    "windu": CVEProbe(
+        cve_id="CVE-2026-57309",
+        name="Windu CMS Blind SQLi",
+        endpoints=[
+            "/",
+            "/index.php",
+        ],
+        fingerprint={
+            "body": ["Windu", "CMS", "powered by Windu"],
+        },
+    ),
+    "custom css": CVEProbe(
+        cve_id="CVE-2026-6433",
+        name="Custom CSS JS PHP SQLi→RCE",
+        endpoints=[
+            "/",
+        ],
+        fingerprint={
+            "body": ["custom-css-js-php", "Custom CSS", "CSS JS PHP"],
+        },
+    ),
+    "muucmf": CVEProbe(
+        cve_id="CVE-2026-36962",
+        name="MuuCMF T6 SQLi",
+        endpoints=[
+            "/index/controller/Search.php",
+            "/",
+        ],
+        fingerprint={
+            "body": ["MuuCMF", "T6", "MuuCMS"],
+        },
+    ),
+    "pg_partman": CVEProbe(
+        cve_id="CVE-2026-61820",
+        name="pg_partman SQLi Privilege Escalation",
+        endpoints=[
+            "/",
+        ],
+        fingerprint={
+            "body": ["PostgreSQL", "pg_partman", "partition"],
+        },
+    ),
 }
 
 
