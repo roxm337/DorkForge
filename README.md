@@ -36,7 +36,7 @@ recommended for every assessment.
 Clone the repository and install the package in an isolated virtual environment:
 
 ```bash
-git clone https://github.com/0x1337/dorkforge.git
+git clone https://github.com/roxm337/dorkforge.git
 cd dorkforge
 
 python -m venv .venv
